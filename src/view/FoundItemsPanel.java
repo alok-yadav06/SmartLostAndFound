@@ -235,7 +235,15 @@ public class FoundItemsPanel extends JPanel {
         JButton imgBtn = UITheme.ghostButton("📷 Upload Image");
         imgBtn.addActionListener(e -> {
             String path = ImageUtil.chooseAndSaveImage(dialog);
-            if (path != null) { imagePath[0] = path; imagePreview.setIcon(ImageUtil.loadScaled(path, 80, 60)); }
+            if (path != null) {
+                imagePath[0] = path;
+                imagePreview.setIcon(ImageUtil.loadScaled(path, 80, 60));
+            } else {
+                JOptionPane.showMessageDialog(dialog,
+                    "Could not save selected image. Please try another file.",
+                    "Image Upload Failed",
+                    JOptionPane.WARNING_MESSAGE);
+            }
         });
 
         addRow(form, gbc, 0, "Item Name *",      nameField);

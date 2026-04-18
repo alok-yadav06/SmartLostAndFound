@@ -254,6 +254,11 @@ public class LostItemsPanel extends JPanel {
             if (path != null) {
                 imagePath[0] = path;
                 imagePreview.setIcon(ImageUtil.loadScaled(path, 80, 60));
+            } else {
+                JOptionPane.showMessageDialog(dialog,
+                    "Could not save selected image. Please try another file.",
+                    "Image Upload Failed",
+                    JOptionPane.WARNING_MESSAGE);
             }
         });
 

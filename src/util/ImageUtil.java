@@ -28,11 +28,11 @@ import javax.swing.filechooser.FileNameExtensionFilter;
  */
 public class ImageUtil {
 
-    private static final String UPLOAD_DIR  = "resources/images/";
+    private static final String UPLOAD_DIR = "resources/images";
+    private static final String FALLBACK_UPLOAD_DIR = "resources/uploaded-images";
 
     static {
-        // Create upload directory if it doesn't exist
-        new File(UPLOAD_DIR).mkdirs();
+        ensureUploadDirectory();
     }
 
     /**
@@ -61,10 +61,11 @@ public class ImageUtil {
         try {
             String ext = getExtension(source.getName());
             String uniqueName = UUID.randomUUID().toString() + "." + ext;
-            Path dest = Paths.get(UPLOAD_DIR + uniqueName);
+            Path uploadDir = ensureUploadDirectory();
+            Path dest = uploadDir.resolve(uniqueName);
 
             Files.copy(source.toPath(), dest, StandardCopyOption.REPLACE_EXISTING);
-            return dest.toString(); // e.g. "resources/images/abc123.jpg"
+            return dest.toString().replace('\\', '/'); // e.g. "resources/images/abc123.jpg"
 
         } catch (IOException e) {
             System.err.println("Image save failed: " + e.getMessage());
@@ -147,6 +148,21 @@ public class ImageUtil {
             Files.deleteIfExists(Paths.get(imagePath));
         } catch (IOException e) {
             System.err.println("Could not delete image: " + e.getMessage());
+        }
+    }
+
+    private static Path ensureUploadDirectory() {
+        Path primary = Paths.get(UPLOAD_DIR);
+        try {
+            if (Files.exists(primary) && !Files.isDirectory(primary)) {
+                Path fallback = Paths.get(FALLBACK_UPLOAD_DIR);
+                Files.createDirectories(fallback);
+                return fallback;
+            }
+            Files.createDirectories(primary);
+            return primary;
+        } catch (IOException e) {
+            throw new RuntimeException("Unable to initialize image upload directory", e);
         }
     }
 }
