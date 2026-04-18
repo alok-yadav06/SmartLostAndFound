@@ -206,7 +206,11 @@ public class FoundItemsPanel extends JPanel {
         JTextField nameField     = UITheme.styledField("What did you find?");
         JTextArea  descArea      = UITheme.styledArea(); descArea.setRows(3);
         JComboBox<String> catBox = UITheme.styledCombo(Item.CATEGORIES);
-        JTextField locField      = UITheme.styledField("Where did you find it?");
+        JComboBox<String> locAreaBox = UITheme.styledCombo(new String[]{
+            "Library", "Cafeteria", "Classroom Block", "Hostel", "Sports Ground",
+            "Auditorium", "Admin Office", "Parking", "Bus Stop", "Other"
+        });
+        JTextField locDetailField = UITheme.styledField("Exact spot (floor/room/near landmark)");
         JTextField turnedInField = UITheme.styledField("Security desk / your room?");
         JTextField contactField  = UITheme.styledField("Your contact (optional: anonymous)");
         JCheckBox  authorityBox  = new JCheckBox("Handed to authority / security");
@@ -224,17 +228,37 @@ public class FoundItemsPanel extends JPanel {
         addRow(form, gbc, 0, "Item Name *",      nameField);
         addRow(form, gbc, 1, "Description",       new JScrollPane(descArea));
         addRow(form, gbc, 2, "Category *",        catBox);
-        addRow(form, gbc, 3, "Found Location *",  locField);
+        JPanel locPanel = new JPanel(new GridLayout(2, 1, 0, 6));
+        locPanel.setOpaque(false);
+        locPanel.add(locAreaBox);
+        locPanel.add(locDetailField);
+
+        addRow(form, gbc, 3, "Found Location *",  locPanel);
         addRow(form, gbc, 4, "Turned In At",      turnedInField);
         addRow(form, gbc, 5, "Your Contact",      contactField);
 
-        gbc.gridy = 12; form.add(authorityBox, gbc);
-        gbc.gridy = 13;
-        JPanel imgRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        imgRow.setOpaque(false); imgRow.add(imagePreview); imgRow.add(imgBtn);
-        form.add(imgRow, gbc);
+        int row = 6;
+        gbc.gridy = row++; form.add(authorityBox, gbc);
 
-        gbc.gridy = 14; gbc.insets = new Insets(16, 0, 0, 0);
+        JPanel imageCard = new JPanel(new BorderLayout(8, 8));
+        imageCard.setOpaque(false);
+        imageCard.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(UITheme.BORDER_COLOR, 1),
+            BorderFactory.createEmptyBorder(12, 12, 12, 12)
+        ));
+        JLabel imageLabel = new JLabel("Upload Images (optional)");
+        imageLabel.setFont(UITheme.FONT_SUBHEAD);
+        imageLabel.setForeground(UITheme.TEXT_PRIMARY);
+        JPanel imgRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        imgRow.setOpaque(false);
+        imgRow.add(imagePreview);
+        imgRow.add(imgBtn);
+        imageCard.add(imageLabel, BorderLayout.NORTH);
+        imageCard.add(imgRow, BorderLayout.CENTER);
+
+        gbc.gridy = row++; form.add(imageCard, gbc);
+
+        gbc.gridy = row++; gbc.insets = new Insets(16, 0, 0, 0);
         JButton submitBtn = UITheme.primaryButton("Submit Found Item");
         submitBtn.setPreferredSize(new Dimension(200, 40));
         form.add(submitBtn, gbc);
@@ -244,12 +268,19 @@ public class FoundItemsPanel extends JPanel {
                 JOptionPane.showMessageDialog(dialog, "Item name is required.");
                 return;
             }
+
+            String location = formatLocation((String) locAreaBox.getSelectedItem(), locDetailField.getText().trim());
+            if (location.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "Found location is required.");
+                return;
+            }
+
             String contact = contactField.getText().trim();
             if (contact.isEmpty()) contact = "anonymous";
 
             FoundItem item = ItemController.getInstance().addFoundItem(
                 nameField.getText().trim(), descArea.getText().trim(),
-                (String) catBox.getSelectedItem(), locField.getText().trim(),
+                (String) catBox.getSelectedItem(), location,
                 turnedInField.getText().trim(), contact,
                 authorityBox.isSelected()
             );
@@ -379,5 +410,12 @@ public class FoundItemsPanel extends JPanel {
         String q = searchField != null ? searchField.getText().trim() : "";
         String cat = categoryFilter != null ? (String) categoryFilter.getSelectedItem() : "All";
         loadItems(q.isEmpty() ? null : q, cat == null ? "All" : cat);
+    }
+
+    private String formatLocation(String area, String detail) {
+        String safeArea = area == null ? "" : area.trim();
+        if (safeArea.isEmpty()) return "";
+        if (detail == null || detail.isBlank()) return safeArea;
+        return safeArea + " - " + detail.trim();
     }
 }

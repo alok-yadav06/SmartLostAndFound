@@ -221,7 +221,11 @@ public class LostItemsPanel extends JPanel {
         JTextArea  descArea      = UITheme.styledArea();
         descArea.setRows(3);
         JComboBox<String> catBox = UITheme.styledCombo(Item.CATEGORIES);
-        JTextField locField      = UITheme.styledField("Where did you lose it?");
+        JComboBox<String> locAreaBox = UITheme.styledCombo(new String[]{
+            "Library", "Cafeteria", "Classroom Block", "Hostel", "Sports Ground",
+            "Auditorium", "Admin Office", "Parking", "Bus Stop", "Other"
+        });
+        JTextField locDetailField = UITheme.styledField("Exact spot (floor/room/near landmark)");
         JTextField lastSeenField = UITheme.styledField("Last seen at?");
         JTextField rewardField   = UITheme.styledField("0 = no reward");
         JTextField contactField  = UITheme.styledField("Your contact number");
@@ -243,18 +247,38 @@ public class LostItemsPanel extends JPanel {
         addFormRow(form, gbc, row++, "Item Name *",    nameField);
         addFormRow(form, gbc, row++, "Description",    new JScrollPane(descArea));
         addFormRow(form, gbc, row++, "Category *",     catBox);
-        addFormRow(form, gbc, row++, "Location *",     locField);
+        JPanel locPanel = new JPanel(new GridLayout(2, 1, 0, 6));
+        locPanel.setOpaque(false);
+        locPanel.add(locAreaBox);
+        locPanel.add(locDetailField);
+
+        addFormRow(form, gbc, row++, "Location *",     locPanel);
         addFormRow(form, gbc, row++, "Last Seen At",   lastSeenField);
         addFormRow(form, gbc, row++, "Reward (₹)",     rewardField);
         addFormRow(form, gbc, row++, "Contact Info",   contactField);
 
         // Image row
-        gbc.gridy = row++;
-        JPanel imgRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel imageCard = new JPanel(new BorderLayout(8, 8));
+        imageCard.setOpaque(false);
+        imageCard.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(UITheme.BORDER_COLOR, 1),
+            BorderFactory.createEmptyBorder(12, 12, 12, 12)
+        ));
+
+        JLabel imageLabel = new JLabel("Upload Images (optional)");
+        imageLabel.setFont(UITheme.FONT_SUBHEAD);
+        imageLabel.setForeground(UITheme.TEXT_PRIMARY);
+
+        JPanel imgRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         imgRow.setOpaque(false);
         imgRow.add(imagePreview);
         imgRow.add(imgBtn);
-        form.add(imgRow, gbc);
+
+        imageCard.add(imageLabel, BorderLayout.NORTH);
+        imageCard.add(imgRow, BorderLayout.CENTER);
+
+        gbc.gridy = row++;
+        form.add(imageCard, gbc);
 
         // Submit
         gbc.gridy = row++;
@@ -269,13 +293,19 @@ public class LostItemsPanel extends JPanel {
                 JOptionPane.showMessageDialog(dialog, "Item name is required.", "Validation", JOptionPane.WARNING_MESSAGE);
                 return;
             }
+            String location = formatLocation((String) locAreaBox.getSelectedItem(), locDetailField.getText().trim());
+            if (location.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "Location is required.", "Validation", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
             double reward = 0;
             try { reward = Double.parseDouble(rewardField.getText().trim()); } catch (NumberFormatException ignored) {}
 
             LostItem item = ItemController.getInstance().addLostItem(
                 name, descArea.getText().trim(),
                 (String) catBox.getSelectedItem(),
-                locField.getText().trim(),
+                location,
                 lastSeenField.getText().trim(),
                 reward, contactField.getText().trim()
             );
@@ -360,5 +390,12 @@ public class LostItemsPanel extends JPanel {
         String q = searchField != null ? searchField.getText().trim() : "";
         String cat = categoryFilter != null ? (String) categoryFilter.getSelectedItem() : "All";
         loadItems(q.isEmpty() ? null : q, cat == null ? "All" : cat);
+    }
+
+    private String formatLocation(String area, String detail) {
+        String safeArea = area == null ? "" : area.trim();
+        if (safeArea.isEmpty()) return "";
+        if (detail == null || detail.isBlank()) return safeArea;
+        return safeArea + " - " + detail.trim();
     }
 }

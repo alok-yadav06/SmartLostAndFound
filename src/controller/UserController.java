@@ -45,6 +45,7 @@ public class UserController {
             System.out.println("✅ Logged in: " + user);
             return true;
         }
+        userDAO.recordFailedLogin(normalized, "Invalid username or password");
         return false;
     }
 

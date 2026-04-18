@@ -72,7 +72,6 @@ public class LoginPanel extends JPanel {
 
         gbc.gridy = 4; gbc.insets = new Insets(0, 0, 8, 0);
         JTextField uField = UITheme.styledField("Enter username");
-        uField.setText("admin");  // Prefill for demo
         card.add(uField, gbc);
 
         // ── Password ──────────────────────────────────────
@@ -90,7 +89,6 @@ public class LoginPanel extends JPanel {
             BorderFactory.createEmptyBorder(8, 12, 8, 12)
         ));
         pField.setPreferredSize(new Dimension(300, 40));
-        pField.setText("admin123");
         card.add(pField, gbc);
 
         // ── Status ────────────────────────────────────────

@@ -3,16 +3,23 @@ package view;
 import controller.ClaimController;
 import controller.ItemController;
 import controller.UserController;
+import dao.UserDAO;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
 import javax.swing.table.*;
 import model.ClaimRequest;
+import model.LoginAuditEntry;
 import model.User;
 import util.ToastUtil;
 import util.UITheme;
@@ -34,24 +41,39 @@ import util.UITheme;
  */
 public class AdminPanel extends JPanel {
 
+    private final UserDAO userDAO = new UserDAO();
+
     private DefaultTableModel claimTableModel;
     private DefaultTableModel claimHistoryTableModel;
     private DefaultTableModel userTableModel;
     private JTable claimTable;
     private JTable claimHistoryTable;
     private JTable userTable;
+    private JTable auditTable;
     private final List<ClaimRequest> pendingClaims = new ArrayList<>();
+    private final List<ClaimRequest> filteredPendingClaims = new ArrayList<>();
     private final List<ClaimRequest> historyClaims = new ArrayList<>();
     private final List<ClaimRequest> filteredHistoryClaims = new ArrayList<>();
+    private final List<User> allUsers = new ArrayList<>();
     private final List<User> visibleUsers = new ArrayList<>();
+    private final List<LoginAuditEntry> allAuditEntries = new ArrayList<>();
+    private final List<LoginAuditEntry> filteredAuditEntries = new ArrayList<>();
     private int pendingPage = 1;
     private int historyPage = 1;
     private int userPage = 1;
+    private int auditPage = 1;
     private static final int PAGE_SIZE = 10;
     private JLabel pendingPageLabel;
     private JLabel historyPageLabel;
     private JLabel userPageLabel;
+    private JLabel auditPageLabel;
     private JComboBox<String> historyFilter;
+    private JTextField pendingSearchField;
+    private JTextField userSearchField;
+    private JTextField auditUserFilterField;
+    private JTextField auditFromDateField;
+    private JTextField auditToDateField;
+    private DefaultTableModel auditTableModel;
 
     public AdminPanel() {
         setLayout(new BorderLayout());
@@ -89,10 +111,13 @@ public class AdminPanel extends JPanel {
         right.setOpaque(false);
 
         JButton refreshBtn = UITheme.ghostButton("⟳ Refresh All");
+        JButton backupBtn = UITheme.ghostButton("Backup DB");
         JButton exportAllBtn = UITheme.primaryButton("Export All Reports");
         refreshBtn.addActionListener(e -> refresh());
+        backupBtn.addActionListener(e -> backupDatabase());
         exportAllBtn.addActionListener(e -> exportAllReports());
         right.add(refreshBtn);
+        right.add(backupBtn);
         right.add(exportAllBtn);
         header.add(left, BorderLayout.WEST);
         header.add(right, BorderLayout.EAST);
@@ -107,6 +132,7 @@ public class AdminPanel extends JPanel {
         tabs.addTab("📝 Pending Claims",  buildClaimsTab());
         tabs.addTab("📚 Claim History",   buildClaimHistoryTab());
         tabs.addTab("👥 User Management", buildUsersTab());
+        tabs.addTab("🔐 Login Audit",     buildLoginAuditTab());
         tabs.addTab("🗑 Item Management", buildItemMgmtTab());
 
         return tabs;
@@ -150,7 +176,36 @@ public class AdminPanel extends JPanel {
 
         JScrollPane scroll = new JScrollPane(claimTable);
         scroll.setBorder(BorderFactory.createLineBorder(UITheme.BORDER_COLOR));
-        panel.add(scroll, BorderLayout.CENTER);
+
+        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        filters.setOpaque(false);
+        pendingSearchField = UITheme.styledField("Search claim id/item id/user id/reason");
+        pendingSearchField.setPreferredSize(new Dimension(320, 34));
+        JButton applySearchBtn = UITheme.ghostButton("Apply");
+        JButton clearSearchBtn = UITheme.ghostButton("Clear");
+        applySearchBtn.addActionListener(e -> {
+            pendingPage = 1;
+            applyPendingClaimFilter();
+        });
+        clearSearchBtn.addActionListener(e -> {
+            pendingSearchField.setText("");
+            pendingPage = 1;
+            applyPendingClaimFilter();
+        });
+        pendingSearchField.addActionListener(e -> {
+            pendingPage = 1;
+            applyPendingClaimFilter();
+        });
+        filters.add(new JLabel("Filter:"));
+        filters.add(pendingSearchField);
+        filters.add(applySearchBtn);
+        filters.add(clearSearchBtn);
+
+        JPanel center = new JPanel(new BorderLayout(0, 8));
+        center.setOpaque(false);
+        center.add(filters, BorderLayout.NORTH);
+        center.add(scroll, BorderLayout.CENTER);
+        panel.add(center, BorderLayout.CENTER);
 
         // Actions
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
@@ -175,7 +230,7 @@ public class AdminPanel extends JPanel {
             }
         });
         nextBtn.addActionListener(e -> {
-            if (pendingPage < totalPages(pendingClaims.size())) {
+            if (pendingPage < totalPages(filteredPendingClaims.size())) {
                 pendingPage++;
                 refreshPendingClaimsPage();
             }
@@ -264,8 +319,23 @@ public class AdminPanel extends JPanel {
         }
         pendingPage = 1;
         historyPage = 1;
+        applyPendingClaimFilter();
         refreshPendingClaimsPage();
         refreshHistoryClaimsPage();
+    }
+
+    private void applyPendingClaimFilter() {
+        filteredPendingClaims.clear();
+        String q = pendingSearchField == null ? "" : pendingSearchField.getText().trim().toLowerCase();
+        for (ClaimRequest c : pendingClaims) {
+            if (q.isEmpty()
+                    || String.valueOf(c.getId()).contains(q)
+                    || String.valueOf(c.getItemId()).contains(q)
+                    || String.valueOf(c.getUserId()).contains(q)
+                    || (c.getClaimReason() != null && c.getClaimReason().toLowerCase().contains(q))) {
+                filteredPendingClaims.add(c);
+            }
+        }
     }
 
     private void handleClaim(boolean approve) {
@@ -320,7 +390,36 @@ public class AdminPanel extends JPanel {
 
         JScrollPane scroll = new JScrollPane(userTable);
         scroll.setBorder(BorderFactory.createLineBorder(UITheme.BORDER_COLOR));
-        panel.add(scroll, BorderLayout.CENTER);
+
+        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        filters.setOpaque(false);
+        userSearchField = UITheme.styledField("Search username/full name/email/role");
+        userSearchField.setPreferredSize(new Dimension(320, 34));
+        JButton userApplyBtn = UITheme.ghostButton("Apply");
+        JButton userClearBtn = UITheme.ghostButton("Clear");
+        userApplyBtn.addActionListener(e -> {
+            userPage = 1;
+            applyUserFilter();
+        });
+        userClearBtn.addActionListener(e -> {
+            userSearchField.setText("");
+            userPage = 1;
+            applyUserFilter();
+        });
+        userSearchField.addActionListener(e -> {
+            userPage = 1;
+            applyUserFilter();
+        });
+        filters.add(new JLabel("Filter:"));
+        filters.add(userSearchField);
+        filters.add(userApplyBtn);
+        filters.add(userClearBtn);
+
+        JPanel center = new JPanel(new BorderLayout(0, 8));
+        center.setOpaque(false);
+        center.add(filters, BorderLayout.NORTH);
+        center.add(scroll, BorderLayout.CENTER);
+        panel.add(center, BorderLayout.CENTER);
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
         actions.setOpaque(false);
@@ -365,10 +464,97 @@ public class AdminPanel extends JPanel {
 
     private void loadUsers() {
         List<User> users = UserController.getInstance().getAllUsers();
+        allUsers.clear();
+        allUsers.addAll(users);
         visibleUsers.clear();
         visibleUsers.addAll(users);
         userPage = 1;
+        applyUserFilter();
         refreshUsersPage();
+    }
+
+    private void applyUserFilter() {
+        visibleUsers.clear();
+        String q = userSearchField == null ? "" : userSearchField.getText().trim().toLowerCase();
+        for (User u : allUsers) {
+            if (q.isEmpty()
+                    || String.valueOf(u.getId()).contains(q)
+                    || (u.getUsername() != null && u.getUsername().toLowerCase().contains(q))
+                    || (u.getFullName() != null && u.getFullName().toLowerCase().contains(q))
+                    || (u.getEmail() != null && u.getEmail().toLowerCase().contains(q))
+                    || u.getRole().name().toLowerCase().contains(q)) {
+                visibleUsers.add(u);
+            }
+        }
+    }
+
+    private void loadAuditEntries() {
+        allAuditEntries.clear();
+        allAuditEntries.addAll(userDAO.getLoginAuditEntries());
+        auditPage = 1;
+        applyAuditFilter();
+        refreshAuditPage();
+    }
+
+    private void applyAuditFilter() {
+        filteredAuditEntries.clear();
+
+        String userQ = auditUserFilterField == null ? "" : auditUserFilterField.getText().trim().toLowerCase();
+        LocalDate fromDate = parseDateOrNull(auditFromDateField == null ? "" : auditFromDateField.getText().trim());
+        LocalDate toDate = parseDateOrNull(auditToDateField == null ? "" : auditToDateField.getText().trim());
+
+        for (LoginAuditEntry e : allAuditEntries) {
+            String username = e.getUsername() == null ? "" : e.getUsername().toLowerCase();
+            boolean userMatch = userQ.isEmpty() || username.contains(userQ);
+            boolean dateMatch = isDateInRange(e.getEventTime(), fromDate, toDate);
+            if (userMatch && dateMatch) {
+                filteredAuditEntries.add(e);
+            }
+        }
+    }
+
+    private void refreshAuditPage() {
+        if (auditTableModel == null) return;
+        auditTableModel.setRowCount(0);
+        int start = (auditPage - 1) * PAGE_SIZE;
+        int end = Math.min(start + PAGE_SIZE, filteredAuditEntries.size());
+
+        for (int i = start; i < end; i++) {
+            LoginAuditEntry e = filteredAuditEntries.get(i);
+            auditTableModel.addRow(new Object[]{
+                e.getId(),
+                e.getUserId() == null ? "—" : e.getUserId(),
+                e.getUsername() == null || e.getUsername().isBlank() ? "—" : e.getUsername(),
+                e.getEventType(),
+                e.getEventTime(),
+                e.getNotes() == null ? "" : e.getNotes()
+            });
+        }
+
+        if (auditPageLabel != null) {
+            auditPageLabel.setText("Page " + auditPage + "/" + totalPages(filteredAuditEntries.size()));
+        }
+    }
+
+    private LocalDate parseDateOrNull(String dateText) {
+        if (dateText == null || dateText.isBlank()) return null;
+        try {
+            return LocalDate.parse(dateText);
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
+
+    private boolean isDateInRange(String eventTime, LocalDate fromDate, LocalDate toDate) {
+        if (eventTime == null || eventTime.length() < 10) return true;
+        try {
+            LocalDate eventDate = LocalDate.parse(eventTime.substring(0, 10));
+            if (fromDate != null && eventDate.isBefore(fromDate)) return false;
+            if (toDate != null && eventDate.isAfter(toDate)) return false;
+            return true;
+        } catch (DateTimeParseException ignored) {
+            return true;
+        }
     }
 
     private void setUserActive(boolean active) {
@@ -381,6 +567,96 @@ public class AdminPanel extends JPanel {
         else        UserController.getInstance().disableUser(userId);
         ToastUtil.showInfo(this, active ? "User enabled." : "User disabled.");
         loadUsers();
+    }
+
+    // ── Login Audit Tab ───────────────────────────────────
+
+    private JPanel buildLoginAuditTab() {
+        JPanel panel = new JPanel(new BorderLayout(0, 12));
+        panel.setBackground(UITheme.BG_MAIN);
+        panel.setBorder(BorderFactory.createEmptyBorder(16, 0, 0, 0));
+
+        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        filters.setOpaque(false);
+
+        auditUserFilterField = UITheme.styledField("Username contains...");
+        auditUserFilterField.setPreferredSize(new Dimension(180, 34));
+        auditFromDateField = UITheme.styledField("From (yyyy-mm-dd)");
+        auditFromDateField.setPreferredSize(new Dimension(150, 34));
+        auditToDateField = UITheme.styledField("To (yyyy-mm-dd)");
+        auditToDateField.setPreferredSize(new Dimension(150, 34));
+
+        JButton applyBtn = UITheme.ghostButton("Apply");
+        JButton clearBtn = UITheme.ghostButton("Clear");
+        applyBtn.addActionListener(e -> {
+            auditPage = 1;
+            applyAuditFilter();
+        });
+        clearBtn.addActionListener(e -> {
+            auditUserFilterField.setText("");
+            auditFromDateField.setText("");
+            auditToDateField.setText("");
+            auditPage = 1;
+            applyAuditFilter();
+        });
+
+        filters.add(new JLabel("User:"));
+        filters.add(auditUserFilterField);
+        filters.add(new JLabel("From:"));
+        filters.add(auditFromDateField);
+        filters.add(new JLabel("To:"));
+        filters.add(auditToDateField);
+        filters.add(applyBtn);
+        filters.add(clearBtn);
+
+        String[] cols = {"ID", "User ID", "Username", "Event", "Time", "Notes"};
+        auditTableModel = new DefaultTableModel(cols, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+        auditTable = new JTable(auditTableModel);
+        auditTable.setRowHeight(34);
+        auditTable.setFont(UITheme.FONT_BODY);
+        auditTable.setGridColor(UITheme.BORDER_COLOR);
+        auditTable.getTableHeader().setFont(UITheme.FONT_SUBHEAD);
+
+        JScrollPane scroll = new JScrollPane(auditTable);
+        scroll.setBorder(BorderFactory.createLineBorder(UITheme.BORDER_COLOR));
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        actions.setOpaque(false);
+        JButton exportBtn = UITheme.ghostButton("Export CSV");
+        exportBtn.addActionListener(e -> exportTableToCsv(auditTableModel, "login-audit.csv"));
+
+        auditPageLabel = new JLabel("Page 1/1");
+        auditPageLabel.setFont(UITheme.FONT_BODY);
+        auditPageLabel.setForeground(UITheme.TEXT_SECONDARY);
+        JButton prevBtn = UITheme.ghostButton("Previous");
+        JButton nextBtn = UITheme.ghostButton("Next");
+        prevBtn.addActionListener(e -> {
+            if (auditPage > 1) {
+                auditPage--;
+                refreshAuditPage();
+            }
+        });
+        nextBtn.addActionListener(e -> {
+            if (auditPage < totalPages(filteredAuditEntries.size())) {
+                auditPage++;
+                refreshAuditPage();
+            }
+        });
+
+        actions.add(exportBtn);
+        actions.add(Box.createHorizontalStrut(16));
+        actions.add(auditPageLabel);
+        actions.add(prevBtn);
+        actions.add(nextBtn);
+
+        panel.add(filters, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+        panel.add(actions, BorderLayout.SOUTH);
+
+        loadAuditEntries();
+        return panel;
     }
 
     // ── Item Management Tab ────────────────────────────────
@@ -451,15 +727,16 @@ public class AdminPanel extends JPanel {
     public void refresh() {
         if (claimTableModel != null) loadClaims();
         if (userTableModel  != null) loadUsers();
+        if (auditTableModel != null) loadAuditEntries();
         ToastUtil.showInfo(this, "Admin data refreshed");
     }
 
     private void refreshPendingClaimsPage() {
         claimTableModel.setRowCount(0);
         int start = (pendingPage - 1) * PAGE_SIZE;
-        int end = Math.min(start + PAGE_SIZE, pendingClaims.size());
+        int end = Math.min(start + PAGE_SIZE, filteredPendingClaims.size());
         for (int i = start; i < end; i++) {
-            ClaimRequest c = pendingClaims.get(i);
+            ClaimRequest c = filteredPendingClaims.get(i);
             claimTableModel.addRow(new Object[]{
                 c.getId(), c.getItemId(), c.getUserId(),
                 truncate(c.getClaimReason(), 30),
@@ -469,7 +746,7 @@ public class AdminPanel extends JPanel {
             });
         }
         if (pendingPageLabel != null) {
-            pendingPageLabel.setText("Page " + pendingPage + "/" + totalPages(pendingClaims.size()));
+            pendingPageLabel.setText("Page " + pendingPage + "/" + totalPages(filteredPendingClaims.size()));
         }
     }
 
@@ -570,7 +847,8 @@ public class AdminPanel extends JPanel {
         try {
             exportClaimsListToCsv(new File(folder, "pending-claims.csv"), pendingClaims);
             exportClaimsListToCsv(new File(folder, "claim-history.csv"), historyClaims);
-            exportUsersListToCsv(new File(folder, "users.csv"), visibleUsers);
+            exportUsersListToCsv(new File(folder, "users.csv"), allUsers);
+            exportAuditListToCsv(new File(folder, "login-audit.csv"), filteredAuditEntries);
             ToastUtil.showSuccess(this, "All reports exported to: " + folder.getName());
         } catch (IOException ex) {
             JOptionPane.showMessageDialog(this,
@@ -610,6 +888,45 @@ public class AdminPanel extends JPanel {
                     escapeCsv(u.isActive() ? "Yes" : "No")
                 ));
             }
+        }
+    }
+
+    private void exportAuditListToCsv(File file, List<LoginAuditEntry> entries) throws IOException {
+        try (PrintWriter writer = new PrintWriter(file, StandardCharsets.UTF_8)) {
+            writer.println("\"ID\",\"User ID\",\"Username\",\"Event\",\"Time\",\"Notes\"");
+            for (LoginAuditEntry e : entries) {
+                writer.println(String.join(",",
+                    escapeCsv(String.valueOf(e.getId())),
+                    escapeCsv(e.getUserId() == null ? "" : String.valueOf(e.getUserId())),
+                    escapeCsv(e.getUsername() == null ? "" : e.getUsername()),
+                    escapeCsv(e.getEventType() == null ? "" : e.getEventType()),
+                    escapeCsv(e.getEventTime() == null ? "" : e.getEventTime()),
+                    escapeCsv(e.getNotes() == null ? "" : e.getNotes())
+                ));
+            }
+        }
+    }
+
+    private void backupDatabase() {
+        try {
+            Path source = Path.of("database", "lostfound.db");
+            if (!Files.exists(source)) {
+                JOptionPane.showMessageDialog(this, "Database file not found: " + source, "Backup", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            Path backupDir = Path.of("database", "backups");
+            Files.createDirectories(backupDir);
+            String ts = java.time.LocalDateTime.now().toString().replace(':', '-').replace('.', '-');
+            Path target = backupDir.resolve("lostfound-backup-" + ts + ".db");
+
+            Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+            ToastUtil.showSuccess(this, "Database backup created: " + target.getFileName());
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this,
+                "Backup failed: " + ex.getMessage(),
+                "Backup Error",
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 

@@ -2,6 +2,7 @@ package dao;
 
 import java.sql.*;
 import java.util.*;
+import model.LoginAuditEntry;
 import model.User;
 
 /**
@@ -138,6 +139,43 @@ public class UserDAO {
 
     public void recordLoginEvent(User user, String eventType) {
         recordLoginEvent(user, eventType, null);
+    }
+
+    public void recordFailedLogin(String username, String notes) {
+        String sql = """
+            INSERT INTO login_audit (user_id, username, event_type, notes)
+            VALUES (?, ?, ?, ?)
+        """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setNull(1, Types.INTEGER);
+            ps.setString(2, username == null ? "" : username.trim());
+            ps.setString(3, "LOGIN_FAILED");
+            ps.setString(4, notes);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Audit write failed: " + e.getMessage());
+        }
+    }
+
+    public List<LoginAuditEntry> getLoginAuditEntries() {
+        List<LoginAuditEntry> entries = new ArrayList<>();
+        String sql = "SELECT id, user_id, username, event_type, event_time, notes FROM login_audit ORDER BY id DESC";
+        try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                Integer userId = rs.getObject("user_id") == null ? null : rs.getInt("user_id");
+                entries.add(new LoginAuditEntry(
+                    rs.getInt("id"),
+                    userId,
+                    rs.getString("username"),
+                    rs.getString("event_type"),
+                    rs.getString("event_time"),
+                    rs.getString("notes")
+                ));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to load login audit: " + e.getMessage(), e);
+        }
+        return entries;
     }
 
     // ── Mapping ────────────────────────────────────────────
