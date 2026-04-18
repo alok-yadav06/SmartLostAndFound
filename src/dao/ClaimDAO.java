@@ -1,9 +1,9 @@
 package dao;
 
-import model.ClaimRequest;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.*;
+import model.ClaimRequest;
 
 public class ClaimDAO {
 
@@ -58,6 +58,20 @@ public class ClaimDAO {
         return claims;
     }
 
+    public List<ClaimRequest> getClaimsByUser(int userId) {
+        List<ClaimRequest> claims = new ArrayList<>();
+        String sql = "SELECT * FROM claim_requests WHERE user_id = ? ORDER BY created_at DESC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) claims.add(mapClaim(rs));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to fetch user claims", e);
+        }
+        return claims;
+    }
+
     public void updateClaimStatus(int claimId, String status, String adminNote) {
         String sql = "UPDATE claim_requests SET status=?, admin_note=?, updated_at=? WHERE id=?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -89,6 +103,21 @@ public class ClaimDAO {
         claim.setId(rs.getInt("id"));
         claim.setStatus(rs.getString("status"));
         claim.setAdminNote(rs.getString("admin_note"));
+        claim.setCreatedAt(parseDateTimeSafely(rs.getString("created_at")));
+        claim.setUpdatedAt(parseDateTimeSafely(rs.getString("updated_at")));
         return claim;
+    }
+
+    private LocalDateTime parseDateTimeSafely(String raw) {
+        if (raw == null || raw.isBlank()) return LocalDateTime.now();
+        try {
+            return LocalDateTime.parse(raw);
+        } catch (Exception ignored) {
+            try {
+                return java.time.OffsetDateTime.parse(raw).toLocalDateTime();
+            } catch (Exception ignoredAgain) {
+                return LocalDateTime.now();
+            }
+        }
     }
 }

@@ -31,6 +31,7 @@ public class MainFrame extends JFrame {
     private LostItemsPanel lostItemsPanel;
     private FoundItemsPanel foundItemsPanel;
     private AddItemPanel addItemPanel;
+    private MyReportsPanel myReportsPanel;
     private AdminPanel adminPanel;
     
     // Panel name constants — avoids magic strings
@@ -38,6 +39,7 @@ public class MainFrame extends JFrame {
     public static final String LOST_ITEMS  = "LOST_ITEMS";
     public static final String FOUND_ITEMS = "FOUND_ITEMS";
     public static final String ADD_ITEM    = "ADD_ITEM";
+    public static final String MY_REPORTS  = "MY_REPORTS";
     public static final String ADMIN       = "ADMIN";
 
     public MainFrame() {
@@ -146,6 +148,7 @@ public class MainFrame extends JFrame {
         sidebar.add(buildNavItem("🔍", "Lost Items",  LOST_ITEMS, false));
         sidebar.add(buildNavItem("📦", "Found Items", FOUND_ITEMS,false));
         sidebar.add(buildNavItem("➕", "Add Item",    ADD_ITEM,   false));
+        sidebar.add(buildNavItem("👤", "My Reports",  MY_REPORTS, false));
 
         sidebar.add(Box.createVerticalGlue()); // Pushes admin to bottom
 
@@ -261,12 +264,14 @@ private JPanel buildContentArea() {
     lostItemsPanel = new LostItemsPanel();
     foundItemsPanel = new FoundItemsPanel();
     addItemPanel = new AddItemPanel();
+    myReportsPanel = new MyReportsPanel();
     adminPanel = new AdminPanel();
 
     area.add(dashboardPanel,  DASHBOARD);
     area.add(lostItemsPanel,  LOST_ITEMS);
     area.add(foundItemsPanel, FOUND_ITEMS);
     area.add(addItemPanel,    ADD_ITEM);
+    area.add(myReportsPanel,  MY_REPORTS);
     area.add(adminPanel,      ADMIN);
 
     return area;
@@ -285,6 +290,7 @@ private JPanel buildContentArea() {
             if (!UserController.getInstance().isAdmin()) {
                 return;
             }
+            refreshSessionUI();
             reloadContentPanels();
         }
         cardLayout.show(contentArea, name);
@@ -331,7 +337,11 @@ private JPanel buildContentArea() {
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         dialog.setLayout(new BorderLayout());
 
-        LoginPanel loginPanel = new LoginPanel(dialog::dispose);
+        LoginPanel loginPanel = new LoginPanel(() -> {
+            dialog.dispose();
+            refreshSessionUI();
+            reloadContentPanels();
+        });
         dialog.add(loginPanel, BorderLayout.CENTER);
 
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
@@ -386,6 +396,7 @@ private JPanel buildContentArea() {
     public void refreshAfterClaimDecision() {
         if (foundItemsPanel != null) foundItemsPanel.refresh();
         if (dashboardPanel != null) dashboardPanel.refresh();
+        if (myReportsPanel != null) myReportsPanel.refresh();
     }
 
     // ── Entry Point ───────────────────────────────────────────────

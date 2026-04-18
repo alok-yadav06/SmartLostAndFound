@@ -141,6 +141,18 @@ public class UserDAO {
         recordLoginEvent(user, eventType, null);
     }
 
+    public boolean resetPasswordByUsernameAndEmail(String username, String email, String newPassword) {
+        String sql = "UPDATE users SET password = ? WHERE username = ? AND lower(email) = lower(?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newPassword);
+            ps.setString(2, username == null ? "" : username.trim().toLowerCase());
+            ps.setString(3, email == null ? "" : email.trim());
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to reset password: " + e.getMessage(), e);
+        }
+    }
+
     public void recordFailedLogin(String username, String notes) {
         String sql = """
             INSERT INTO login_audit (user_id, username, event_type, notes)

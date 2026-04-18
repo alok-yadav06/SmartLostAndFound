@@ -115,10 +115,20 @@ public class LoginPanel extends JPanel {
         regBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.add(regBtn, gbc);
 
+        gbc.gridy = 10;
+        JButton forgotBtn = new JButton("Forgot password?");
+        forgotBtn.setFont(UITheme.FONT_SMALL);
+        forgotBtn.setForeground(UITheme.TEXT_SECONDARY);
+        forgotBtn.setBorderPainted(false);
+        forgotBtn.setContentAreaFilled(false);
+        forgotBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        card.add(forgotBtn, gbc);
+
         // ── Event Handlers ────────────────────────────────
         loginBtn.addActionListener(e -> doLogin(uField, pField, status));
         pField.addActionListener(e -> doLogin(uField, pField, status));   // Enter key
         regBtn.addActionListener(e -> showRegisterDialog(card));
+        forgotBtn.addActionListener(e -> showForgotPasswordDialog(card));
 
         // Store refs via client property (avoids complex field management)
         card.putClientProperty("uField",  uField);
@@ -164,36 +174,101 @@ public class LoginPanel extends JPanel {
         JTextField userField  = UITheme.styledField("Username");
         JTextField emailField = UITheme.styledField("Email");
         JPasswordField passF  = new JPasswordField();
+        JLabel rules = new JLabel("<html><small>" + UserController.getInstance().getPasswordRulesText() + "</small></html>");
+        rules.setForeground(UITheme.TEXT_SECONDARY);
 
         form.add(new JLabel("Full Name:")); form.add(nameField);
         form.add(new JLabel("Username:")); form.add(userField);
         form.add(new JLabel("Email:"));    form.add(emailField);
         form.add(new JLabel("Password:")); form.add(passF);
+        form.add(new JLabel("Password Rules:")); form.add(rules);
 
         JButton regBtn = UITheme.primaryButton("Register");
         JLabel msg = new JLabel(" ", SwingConstants.CENTER);
         msg.setForeground(UITheme.DANGER);
 
         regBtn.addActionListener(e -> {
-            boolean ok = UserController.getInstance().register(
-                userField.getText().trim(),
-                new String(passF.getPassword()),
-                emailField.getText().trim(),
-                nameField.getText().trim()
-            );
-            if (ok) {
-                msg.setForeground(UITheme.SUCCESS);
-                msg.setText("✅ Account created! You can now log in.");
-                Timer t = new Timer(2000, ev -> dialog.dispose());
-                t.setRepeats(false); t.start();
-            } else {
-                msg.setText("❌ Username taken or invalid input.");
+            try {
+                boolean ok = UserController.getInstance().register(
+                    userField.getText().trim(),
+                    new String(passF.getPassword()),
+                    emailField.getText().trim(),
+                    nameField.getText().trim()
+                );
+                if (ok) {
+                    msg.setForeground(UITheme.SUCCESS);
+                    msg.setText("✅ Account created! You can now log in.");
+                    Timer t = new Timer(2000, ev -> dialog.dispose());
+                    t.setRepeats(false); t.start();
+                } else {
+                    msg.setText("❌ Username taken or invalid input.");
+                }
+            } catch (IllegalArgumentException ex) {
+                msg.setText("❌ " + ex.getMessage());
             }
         });
 
         dialog.add(form);
         dialog.add(regBtn);
         dialog.add(msg);
+        dialog.setVisible(true);
+    }
+
+    private void showForgotPasswordDialog(Component parent) {
+        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Forgot Password");
+        dialog.setLayout(new GridBagLayout());
+        dialog.setSize(430, 320);
+        dialog.setLocationRelativeTo(parent);
+        dialog.setModal(true);
+
+        JPanel form = new JPanel(new GridLayout(0, 2, 10, 10));
+        form.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        form.setBackground(UITheme.BG_CARD);
+
+        JTextField userField = UITheme.styledField("Username");
+        JTextField emailField = UITheme.styledField("Registered email");
+        JPasswordField newPass = new JPasswordField();
+        newPass.setBorder(BorderFactory.createLineBorder(UITheme.BORDER_COLOR));
+
+        form.add(new JLabel("Username:"));
+        form.add(userField);
+        form.add(new JLabel("Email:"));
+        form.add(emailField);
+        form.add(new JLabel("New Password:"));
+        form.add(newPass);
+
+        JLabel hint = new JLabel("<html><small>Placeholder reset flow: verifies username + email.</small></html>");
+        hint.setForeground(UITheme.TEXT_SECONDARY);
+
+        JButton resetBtn = UITheme.primaryButton("Reset Password");
+        JLabel status = new JLabel(" ", SwingConstants.CENTER);
+        status.setForeground(UITheme.DANGER);
+
+        resetBtn.addActionListener(e -> {
+            try {
+                boolean ok = UserController.getInstance().resetPasswordPlaceholder(
+                    userField.getText().trim(),
+                    emailField.getText().trim(),
+                    new String(newPass.getPassword())
+                );
+                if (ok) {
+                    status.setForeground(UITheme.SUCCESS);
+                    status.setText("✅ Password reset successful. Please login.");
+                    Timer t = new Timer(1400, ev -> dialog.dispose());
+                    t.setRepeats(false);
+                    t.start();
+                } else {
+                    status.setText("❌ Username/email does not match.");
+                }
+            } catch (IllegalArgumentException ex) {
+                status.setText("❌ " + ex.getMessage());
+            }
+        });
+
+        dialog.add(form);
+        dialog.add(hint);
+        dialog.add(resetBtn);
+        dialog.add(status);
         dialog.setVisible(true);
     }
 }

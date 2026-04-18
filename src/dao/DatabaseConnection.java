@@ -105,6 +105,7 @@ public class DatabaseConnection {
                     FOREIGN KEY(reported_by) REFERENCES users(id)
                 )
             """);
+            ensureColumnExists(stmt, "lost_items", "image_path", "TEXT");
 
             // Found items table
             stmt.execute("""
@@ -125,6 +126,7 @@ public class DatabaseConnection {
                     FOREIGN KEY(reported_by) REFERENCES users(id)
                 )
             """);
+            ensureColumnExists(stmt, "found_items", "image_path", "TEXT");
 
             // Claim requests table
             stmt.execute("""
@@ -165,6 +167,22 @@ public class DatabaseConnection {
 
         } catch (SQLException e) {
             System.err.println("❌ DB init failed: " + e.getMessage());
+        }
+    }
+
+    private void ensureColumnExists(Statement stmt, String tableName, String columnName, String columnDefinition) throws SQLException {
+        boolean exists = false;
+        try (ResultSet rs = stmt.executeQuery("PRAGMA table_info(" + tableName + ")")) {
+            while (rs.next()) {
+                if (columnName.equalsIgnoreCase(rs.getString("name"))) {
+                    exists = true;
+                    break;
+                }
+            }
+        }
+
+        if (!exists) {
+            stmt.execute("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + columnDefinition);
         }
     }
 }

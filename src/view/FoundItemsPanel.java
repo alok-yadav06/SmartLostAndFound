@@ -127,17 +127,22 @@ public class FoundItemsPanel extends JPanel {
 
         JButton addBtn   = UITheme.primaryButton("+ Report Found Item");
         JButton claimBtn = UITheme.successButton("📝 Claim This Item");
+        JButton editBtn  = UITheme.ghostButton("✏ Edit Selected");
         JButton delBtn   = UITheme.dangerButton("🗑 Delete");
         JButton viewBtn  = UITheme.ghostButton("👁 View Details");
 
         addBtn.addActionListener(e -> showAddDialog());
         claimBtn.addActionListener(e -> showClaimDialog());
+        editBtn.addActionListener(e -> editSelected());
         delBtn.addActionListener(e -> deleteSelected());
         viewBtn.addActionListener(e -> viewDetails());
 
         leftActions.add(addBtn);
         leftActions.add(claimBtn);
-        if (UserController.getInstance().isAdmin()) leftActions.add(delBtn);
+        if (UserController.getInstance().isLoggedIn()) {
+            leftActions.add(editBtn);
+            leftActions.add(delBtn);
+        }
         leftActions.add(viewBtn);
 
         JPanel pager = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
@@ -190,6 +195,14 @@ public class FoundItemsPanel extends JPanel {
     // ── Add Dialog ─────────────────────────────────────────
 
     private void showAddDialog() {
+        if (!UserController.getInstance().isLoggedIn()) {
+            JOptionPane.showMessageDialog(this,
+                "Please sign in to report a found item. Guest mode is view-only.",
+                "Sign In Required",
+                JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
         JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this),
             "Report Found Item", Dialog.ModalityType.APPLICATION_MODAL);
         dialog.setSize(500, 560);
@@ -298,9 +311,9 @@ public class FoundItemsPanel extends JPanel {
                 nameField.getText().trim(), descArea.getText().trim(),
                 (String) catBox.getSelectedItem(), location,
                 turnedInField.getText().trim(), contact,
-                authorityBox.isSelected()
+                authorityBox.isSelected(),
+                imagePath[0]
             );
-            item.setImagePath(imagePath[0]);
             loadItems(null, "All");
             dialog.dispose();
             JOptionPane.showMessageDialog(this, "✅ Found item reported!", "Success", JOptionPane.INFORMATION_MESSAGE);
@@ -379,11 +392,86 @@ public class FoundItemsPanel extends JPanel {
         int row = table.getSelectedRow();
         if (row < 0) { JOptionPane.showMessageDialog(this, "Select an item."); return; }
         int id = (int) tableModel.getValueAt(row, 0);
+
+        if (!canModifyItem(id)) {
+            JOptionPane.showMessageDialog(this,
+                "You can edit/delete only items you reported.",
+                "Permission Denied",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         int confirm = JOptionPane.showConfirmDialog(this, "Delete item #" + id + "?",
             "Confirm", JOptionPane.YES_NO_OPTION);
         if (confirm == JOptionPane.YES_OPTION) {
             ItemController.getInstance().deleteFoundItem(id);
             reloadCurrentFilter();
+        }
+    }
+
+    private void editSelected() {
+        int row = table.getSelectedRow();
+        if (row < 0) { JOptionPane.showMessageDialog(this, "Select an item."); return; }
+
+        int id = (int) tableModel.getValueAt(row, 0);
+        if (!canModifyItem(id)) {
+            JOptionPane.showMessageDialog(this,
+                "You can edit/delete only items you reported.",
+                "Permission Denied",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        FoundItem selected = findVisibleItemById(id);
+        if (selected == null) {
+            JOptionPane.showMessageDialog(this, "Unable to load selected item details.");
+            return;
+        }
+
+        JTextField nameField = UITheme.styledField("Item name");
+        nameField.setText(selected.getName());
+        JTextArea descArea = UITheme.styledArea();
+        descArea.setRows(3);
+        descArea.setText(selected.getDescription() == null ? "" : selected.getDescription());
+        JComboBox<String> catBox = UITheme.styledCombo(Item.CATEGORIES);
+        catBox.setSelectedItem(selected.getCategory());
+        JTextField locationField = UITheme.styledField("Location");
+        locationField.setText(selected.getLocation());
+        JTextField turnedInField = UITheme.styledField("Turned in at");
+        turnedInField.setText(selected.getTurnedInLocation());
+        JTextField contactField = UITheme.styledField("Finder contact");
+        contactField.setText(selected.getFinderContact());
+        JCheckBox authorityBox = new JCheckBox("Handed to authority/security", selected.isHandedToAuthority());
+
+        JPanel form = new JPanel(new GridLayout(0, 1, 0, 6));
+        form.add(new JLabel("Item Name")); form.add(nameField);
+        form.add(new JLabel("Description")); form.add(new JScrollPane(descArea));
+        form.add(new JLabel("Category")); form.add(catBox);
+        form.add(new JLabel("Location")); form.add(locationField);
+        form.add(new JLabel("Turned In At")); form.add(turnedInField);
+        form.add(new JLabel("Finder Contact")); form.add(contactField);
+        form.add(authorityBox);
+
+        int result = JOptionPane.showConfirmDialog(this, new JScrollPane(form),
+            "Edit Found Item #" + id, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        try {
+            selected.setName(nameField.getText().trim());
+            selected.setDescription(descArea.getText().trim());
+            selected.setCategory((String) catBox.getSelectedItem());
+            selected.setLocation(locationField.getText().trim());
+            selected.setTurnedInLocation(turnedInField.getText().trim());
+            selected.setFinderContact(contactField.getText().trim());
+            selected.setHandedToAuthority(authorityBox.isSelected());
+            ItemController.getInstance().updateFoundItem(selected);
+            reloadCurrentFilter();
+            JOptionPane.showMessageDialog(this, "Item updated successfully.");
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this,
+                "Failed to update item: " + ex.getMessage(),
+                "Update Error",
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -433,5 +521,19 @@ public class FoundItemsPanel extends JPanel {
         if (safeArea.isEmpty()) return "";
         if (detail == null || detail.isBlank()) return safeArea;
         return safeArea + " - " + detail.trim();
+    }
+
+    private boolean canModifyItem(int itemId) {
+        UserController userController = UserController.getInstance();
+        if (!userController.isLoggedIn()) return false;
+        if (userController.isAdmin()) return true;
+        return ItemController.getInstance().isFoundItemOwnedBy(itemId, userController.getCurrentUser().getId());
+    }
+
+    private FoundItem findVisibleItemById(int itemId) {
+        for (FoundItem item : visibleItems) {
+            if (item.getId() == itemId) return item;
+        }
+        return null;
     }
 }

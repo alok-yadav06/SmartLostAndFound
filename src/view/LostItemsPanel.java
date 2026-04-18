@@ -142,6 +142,9 @@ public class LostItemsPanel extends JPanel {
         JButton addBtn = UITheme.primaryButton("+ Report Lost Item");
         addBtn.addActionListener(e -> showAddDialog());
 
+        JButton editBtn = UITheme.ghostButton("✏ Edit Selected");
+        editBtn.addActionListener(e -> editSelected());
+
         JButton delBtn = UITheme.dangerButton("🗑 Delete Selected");
         delBtn.addActionListener(e -> deleteSelected());
 
@@ -149,7 +152,10 @@ public class LostItemsPanel extends JPanel {
         viewBtn.addActionListener(e -> viewDetails());
 
         leftActions.add(addBtn);
-        if (UserController.getInstance().isAdmin()) leftActions.add(delBtn);
+        if (UserController.getInstance().isLoggedIn()) {
+            leftActions.add(editBtn);
+            leftActions.add(delBtn);
+        }
         leftActions.add(viewBtn);
 
         JPanel pager = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
@@ -204,6 +210,14 @@ public class LostItemsPanel extends JPanel {
     // ── Add Item Dialog ────────────────────────────────────
 
     private void showAddDialog() {
+        if (!UserController.getInstance().isLoggedIn()) {
+            JOptionPane.showMessageDialog(this,
+                "Please sign in to report a lost item. Guest mode is view-only.",
+                "Sign In Required",
+                JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
         JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this),
             "Report Lost Item", Dialog.ModalityType.APPLICATION_MODAL);
         dialog.setSize(500, 600);
@@ -307,9 +321,9 @@ public class LostItemsPanel extends JPanel {
                 (String) catBox.getSelectedItem(),
                 location,
                 lastSeenField.getText().trim(),
-                reward, contactField.getText().trim()
+                reward, contactField.getText().trim(),
+                imagePath[0]
             );
-            item.setImagePath(imagePath[0]);
             loadItems(null, "All");
             dialog.dispose();
             JOptionPane.showMessageDialog(this, "✅ Lost item reported successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
@@ -338,11 +352,87 @@ public class LostItemsPanel extends JPanel {
         int row = table.getSelectedRow();
         if (row < 0) { JOptionPane.showMessageDialog(this, "Select an item first."); return; }
         int id = (int) tableModel.getValueAt(row, 0);
+
+        if (!canModifyItem(id)) {
+            JOptionPane.showMessageDialog(this,
+                "You can edit/delete only items you reported.",
+                "Permission Denied",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         int confirm = JOptionPane.showConfirmDialog(this,
             "Delete item #" + id + "?", "Confirm Delete", JOptionPane.YES_NO_OPTION);
         if (confirm == JOptionPane.YES_OPTION) {
             ItemController.getInstance().deleteLostItem(id);
             reloadCurrentFilter();
+        }
+    }
+
+    private void editSelected() {
+        int row = table.getSelectedRow();
+        if (row < 0) { JOptionPane.showMessageDialog(this, "Select an item first."); return; }
+
+        int id = (int) tableModel.getValueAt(row, 0);
+        if (!canModifyItem(id)) {
+            JOptionPane.showMessageDialog(this,
+                "You can edit/delete only items you reported.",
+                "Permission Denied",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        LostItem selected = findVisibleItemById(id);
+        if (selected == null) {
+            JOptionPane.showMessageDialog(this, "Unable to load selected item details.");
+            return;
+        }
+
+        JTextField nameField = UITheme.styledField("Item name");
+        nameField.setText(selected.getName());
+        JTextArea descArea = UITheme.styledArea();
+        descArea.setRows(3);
+        descArea.setText(selected.getDescription() == null ? "" : selected.getDescription());
+        JComboBox<String> catBox = UITheme.styledCombo(Item.CATEGORIES);
+        catBox.setSelectedItem(selected.getCategory());
+        JTextField locationField = UITheme.styledField("Location");
+        locationField.setText(selected.getLocation());
+        JTextField lastSeenField = UITheme.styledField("Last seen");
+        lastSeenField.setText(selected.getLastSeenLocation());
+        JTextField rewardField = UITheme.styledField("Reward");
+        rewardField.setText(String.valueOf(selected.getRewardOffered()));
+        JTextField contactField = UITheme.styledField("Contact");
+        contactField.setText(selected.getContactInfo());
+
+        JPanel form = new JPanel(new GridLayout(0, 1, 0, 6));
+        form.add(new JLabel("Item Name")); form.add(nameField);
+        form.add(new JLabel("Description")); form.add(new JScrollPane(descArea));
+        form.add(new JLabel("Category")); form.add(catBox);
+        form.add(new JLabel("Location")); form.add(locationField);
+        form.add(new JLabel("Last Seen At")); form.add(lastSeenField);
+        form.add(new JLabel("Reward (₹)")); form.add(rewardField);
+        form.add(new JLabel("Contact Info")); form.add(contactField);
+
+        int result = JOptionPane.showConfirmDialog(this, new JScrollPane(form),
+            "Edit Lost Item #" + id, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        try {
+            selected.setName(nameField.getText().trim());
+            selected.setDescription(descArea.getText().trim());
+            selected.setCategory((String) catBox.getSelectedItem());
+            selected.setLocation(locationField.getText().trim());
+            selected.setLastSeenLocation(lastSeenField.getText().trim());
+            selected.setRewardOffered(Double.parseDouble(rewardField.getText().trim()));
+            selected.setContactInfo(contactField.getText().trim());
+            ItemController.getInstance().updateLostItem(selected);
+            reloadCurrentFilter();
+            JOptionPane.showMessageDialog(this, "Item updated successfully.");
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this,
+                "Failed to update item: " + ex.getMessage(),
+                "Update Error",
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -397,5 +487,19 @@ public class LostItemsPanel extends JPanel {
         if (safeArea.isEmpty()) return "";
         if (detail == null || detail.isBlank()) return safeArea;
         return safeArea + " - " + detail.trim();
+    }
+
+    private boolean canModifyItem(int itemId) {
+        UserController userController = UserController.getInstance();
+        if (!userController.isLoggedIn()) return false;
+        if (userController.isAdmin()) return true;
+        return ItemController.getInstance().isLostItemOwnedBy(itemId, userController.getCurrentUser().getId());
+    }
+
+    private LostItem findVisibleItemById(int itemId) {
+        for (LostItem item : visibleItems) {
+            if (item.getId() == itemId) return item;
+        }
+        return null;
     }
 }

@@ -62,5 +62,6 @@ public class ClaimController {
 
     public List<ClaimRequest> getAllClaims()     { return claimDAO.getAllClaims(); }
     public List<ClaimRequest> getPendingClaims() { return claimDAO.getPendingClaims(); }
+    public List<ClaimRequest> getClaimsByUser(int userId) { return claimDAO.getClaimsByUser(userId); }
     public int getPendingCount()                 { return claimDAO.countPendingClaims(); }
 }

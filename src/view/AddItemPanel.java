@@ -1,5 +1,6 @@
 package view;
 
+import controller.UserController;
 import java.awt.*;
 import javax.swing.*;
 import util.UITheme;
@@ -51,6 +52,14 @@ public class AddItemPanel extends JPanel {
 	}
 
 	private void navigateTo(String panelName) {
+		if (!UserController.getInstance().isLoggedIn()) {
+			JOptionPane.showMessageDialog(this,
+				"Please sign in first. Reporting items is available only for logged-in users.",
+				"Sign In Required",
+				JOptionPane.INFORMATION_MESSAGE);
+			return;
+		}
+
 		Window window = SwingUtilities.getWindowAncestor(this);
 		if (window instanceof MainFrame frame) {
 			frame.showPanel(panelName);

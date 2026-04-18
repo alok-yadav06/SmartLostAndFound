@@ -87,6 +87,21 @@ public class ItemDAO {
         return items;
     }
 
+    public List<LostItem> getLostItemsByReporter(int reporterId) {
+        List<LostItem> items = new ArrayList<>();
+        String sql = "SELECT * FROM lost_items WHERE reported_by = ? ORDER BY created_at DESC";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, reporterId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) items.add(mapLostItem(rs));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to fetch user lost items: " + e.getMessage(), e);
+        }
+        return items;
+    }
+
     public List<LostItem> searchLostItems(String query, String category) {
         List<LostItem> items = new ArrayList<>();
         boolean hasQuery    = query != null && !query.trim().isEmpty();
@@ -125,6 +140,42 @@ public class ItemDAO {
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Update failed: " + e.getMessage(), e);
+        }
+    }
+
+    public void updateLostItem(LostItem item) {
+        String sql = """
+            UPDATE lost_items
+            SET name = ?, description = ?, category = ?, location = ?,
+                last_seen_location = ?, reward_offered = ?, contact_info = ?, image_path = ?
+            WHERE id = ?
+        """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, item.getName());
+            ps.setString(2, item.getDescription());
+            ps.setString(3, item.getCategory());
+            ps.setString(4, item.getLocation());
+            ps.setString(5, item.getLastSeenLocation());
+            ps.setDouble(6, item.getRewardOffered());
+            ps.setString(7, item.getContactInfo());
+            ps.setString(8, item.getImagePath());
+            ps.setInt(9, item.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Update failed: " + e.getMessage(), e);
+        }
+    }
+
+    public boolean isLostItemOwnedBy(int itemId, int userId) {
+        String sql = "SELECT 1 FROM lost_items WHERE id = ? AND reported_by = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, itemId);
+            ps.setInt(2, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            return false;
         }
     }
 
@@ -210,6 +261,20 @@ public class ItemDAO {
         return items;
     }
 
+    public List<FoundItem> getFoundItemsByReporter(int reporterId) {
+        List<FoundItem> items = new ArrayList<>();
+        String sql = "SELECT * FROM found_items WHERE reported_by = ? ORDER BY created_at DESC";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, reporterId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) items.add(mapFoundItem(rs));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to fetch user found items: " + e.getMessage(), e);
+        }
+        return items;
+    }
+
     public List<FoundItem> searchFoundItems(String query, String category) {
         List<FoundItem> items = new ArrayList<>();
         boolean hasQuery = query != null && !query.trim().isEmpty();
@@ -256,6 +321,42 @@ public class ItemDAO {
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Update failed: " + e.getMessage(), e);
+        }
+    }
+
+    public void updateFoundItem(FoundItem item) {
+        String sql = """
+            UPDATE found_items
+            SET name = ?, description = ?, category = ?, location = ?,
+                turned_in_location = ?, finder_contact = ?, handed_to_authority = ?, image_path = ?
+            WHERE id = ?
+        """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, item.getName());
+            ps.setString(2, item.getDescription());
+            ps.setString(3, item.getCategory());
+            ps.setString(4, item.getLocation());
+            ps.setString(5, item.getTurnedInLocation());
+            ps.setString(6, item.getFinderContact());
+            ps.setInt(7, item.isHandedToAuthority() ? 1 : 0);
+            ps.setString(8, item.getImagePath());
+            ps.setInt(9, item.getId());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Update failed: " + e.getMessage(), e);
+        }
+    }
+
+    public boolean isFoundItemOwnedBy(int itemId, int userId) {
+        String sql = "SELECT 1 FROM found_items WHERE id = ? AND reported_by = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, itemId);
+            ps.setInt(2, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            return false;
         }
     }
 
