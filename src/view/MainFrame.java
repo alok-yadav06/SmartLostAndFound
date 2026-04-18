@@ -293,7 +293,20 @@ private JPanel buildContentArea() {
             refreshSessionUI();
             reloadContentPanels();
         }
+        
         cardLayout.show(contentArea, name);
+        
+        // Refresh data-dependent panels when navigating to them
+        // This ensures fresh data is loaded from the database
+        if (MY_REPORTS.equals(name) && myReportsPanel != null) {
+            myReportsPanel.refresh();
+        } else if (DASHBOARD.equals(name) && dashboardPanel != null) {
+            dashboardPanel.refresh();
+        } else if (LOST_ITEMS.equals(name) && lostItemsPanel != null) {
+            lostItemsPanel.refresh();
+        } else if (FOUND_ITEMS.equals(name) && foundItemsPanel != null) {
+            foundItemsPanel.refresh();
+        }
     }
 
     public void promptLoginAtStartup() {
