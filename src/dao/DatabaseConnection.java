@@ -142,6 +142,19 @@ public class DatabaseConnection {
                 )
             """);
 
+            // Login audit table
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS login_audit (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id     INTEGER,
+                    username    TEXT,
+                    event_type  TEXT NOT NULL,
+                    event_time  TEXT DEFAULT CURRENT_TIMESTAMP,
+                    notes       TEXT,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """);
+
             // Insert default admin if not exists
             stmt.execute("""
                 INSERT OR IGNORE INTO users (username, password, email, full_name, role)

@@ -1,8 +1,8 @@
 package dao;
 
-import model.User;
 import java.sql.*;
 import java.util.*;
+import model.User;
 
 /**
  * UserDAO — Database operations for users.
@@ -111,6 +111,33 @@ public class UserDAO {
              ResultSet rs   = stmt.executeQuery("SELECT COUNT(*) FROM users WHERE is_active=1")) {
             return rs.next() ? rs.getInt(1) : 0;
         } catch (SQLException e) { return 0; }
+    }
+
+    // ── Audit ──────────────────────────────────────────────
+
+    public void recordLoginEvent(User user, String eventType, String notes) {
+        String sql = """
+            INSERT INTO login_audit (user_id, username, event_type, notes)
+            VALUES (?, ?, ?, ?)
+        """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (user != null) {
+                ps.setInt(1, user.getId());
+                ps.setString(2, user.getUsername());
+            } else {
+                ps.setNull(1, Types.INTEGER);
+                ps.setNull(2, Types.VARCHAR);
+            }
+            ps.setString(3, eventType);
+            ps.setString(4, notes);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Audit write failed: " + e.getMessage());
+        }
+    }
+
+    public void recordLoginEvent(User user, String eventType) {
+        recordLoginEvent(user, eventType, null);
     }
 
     // ── Mapping ────────────────────────────────────────────

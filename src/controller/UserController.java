@@ -41,6 +41,7 @@ public class UserController {
         User user = userDAO.findByUsername(normalized);
         if (user != null && user.authenticate(password)) {
             this.currentUser = user;
+            userDAO.recordLoginEvent(user, "LOGIN", "Successful login");
             System.out.println("✅ Logged in: " + user);
             return true;
         }
@@ -48,6 +49,9 @@ public class UserController {
     }
 
     public void logout() {
+        if (currentUser != null) {
+            userDAO.recordLoginEvent(currentUser, "LOGOUT", "User logged out");
+        }
         System.out.println("👋 Logged out: " + currentUser);
         this.currentUser = null;
     }
