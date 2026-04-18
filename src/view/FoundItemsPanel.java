@@ -238,7 +238,21 @@ public class FoundItemsPanel extends JPanel {
         addRow(form, gbc, 5, "Your Contact",      contactField);
 
         int row = 6;
-        gbc.gridy = row++; form.add(authorityBox, gbc);
+
+        JPanel authorityCard = new JPanel(new BorderLayout());
+        authorityCard.setOpaque(false);
+        authorityCard.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(UITheme.BORDER_COLOR, 1),
+            BorderFactory.createEmptyBorder(10, 12, 10, 12)
+        ));
+        JLabel authorityLabel = new JLabel("Security / authority handover");
+        authorityLabel.setFont(UITheme.FONT_SUBHEAD);
+        authorityLabel.setForeground(UITheme.TEXT_PRIMARY);
+        authorityCard.add(authorityLabel, BorderLayout.NORTH);
+        authorityCard.add(authorityBox, BorderLayout.CENTER);
+
+        gbc.gridy = 12;
+        form.add(authorityCard, gbc);
 
         JPanel imageCard = new JPanel(new BorderLayout(8, 8));
         imageCard.setOpaque(false);
@@ -256,9 +270,11 @@ public class FoundItemsPanel extends JPanel {
         imageCard.add(imageLabel, BorderLayout.NORTH);
         imageCard.add(imgRow, BorderLayout.CENTER);
 
-        gbc.gridy = row++; form.add(imageCard, gbc);
+        gbc.gridy = 13;
+        form.add(imageCard, gbc);
 
-        gbc.gridy = row++; gbc.insets = new Insets(16, 0, 0, 0);
+        gbc.gridy = 14;
+        gbc.insets = new Insets(16, 0, 0, 0);
         JButton submitBtn = UITheme.primaryButton("Submit Found Item");
         submitBtn.setPreferredSize(new Dimension(200, 40));
         form.add(submitBtn, gbc);

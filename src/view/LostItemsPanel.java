@@ -277,11 +277,11 @@ public class LostItemsPanel extends JPanel {
         imageCard.add(imageLabel, BorderLayout.NORTH);
         imageCard.add(imgRow, BorderLayout.CENTER);
 
-        gbc.gridy = row++;
+        gbc.gridy = 14;
         form.add(imageCard, gbc);
 
         // Submit
-        gbc.gridy = row++;
+        gbc.gridy = 15;
         gbc.insets = new Insets(16, 0, 0, 0);
         JButton submitBtn = UITheme.primaryButton("Submit Report");
         submitBtn.setPreferredSize(new Dimension(200, 40));
