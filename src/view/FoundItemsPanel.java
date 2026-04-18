@@ -139,7 +139,8 @@ public class FoundItemsPanel extends JPanel {
 
         leftActions.add(addBtn);
         leftActions.add(claimBtn);
-        if (UserController.getInstance().isLoggedIn()) {
+        // Only admins can edit and delete items
+        if (UserController.getInstance().isAdmin()) {
             leftActions.add(editBtn);
             leftActions.add(delBtn);
         }

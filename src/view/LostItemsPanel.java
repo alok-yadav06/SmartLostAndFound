@@ -152,7 +152,8 @@ public class LostItemsPanel extends JPanel {
         viewBtn.addActionListener(e -> viewDetails());
 
         leftActions.add(addBtn);
-        if (UserController.getInstance().isLoggedIn()) {
+        // Only admins can edit and delete items
+        if (UserController.getInstance().isAdmin()) {
             leftActions.add(editBtn);
             leftActions.add(delBtn);
         }
