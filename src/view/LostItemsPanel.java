@@ -444,12 +444,36 @@ public class LostItemsPanel extends JPanel {
     private void viewDetails() {
         int row = table.getSelectedRow();
         if (row < 0) { JOptionPane.showMessageDialog(this, "Select an item first."); return; }
+
+        int id = (int) tableModel.getValueAt(row, 0);
+        LostItem item = findVisibleItemById(id);
+        if (item == null) {
+            JOptionPane.showMessageDialog(this, "Unable to load selected item details.");
+            return;
+        }
+
         StringBuilder sb = new StringBuilder();
         String[] cols = {"ID","Name","Category","Location","Date","Status","Reward"};
         for (int i = 0; i < cols.length; i++) {
             sb.append(cols[i]).append(": ").append(tableModel.getValueAt(row, i)).append("\n");
         }
-        JOptionPane.showMessageDialog(this, sb.toString(), "Item Details", JOptionPane.INFORMATION_MESSAGE);
+
+        JPanel detailsPanel = new JPanel(new BorderLayout(12, 12));
+        detailsPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JLabel imageLabel = new JLabel(ImageUtil.loadScaled(item.getImagePath(), 220, 160));
+        imageLabel.setBorder(BorderFactory.createLineBorder(UITheme.BORDER_COLOR));
+        detailsPanel.add(imageLabel, BorderLayout.NORTH);
+
+        JTextArea infoArea = new JTextArea(sb.toString());
+        infoArea.setEditable(false);
+        infoArea.setLineWrap(true);
+        infoArea.setWrapStyleWord(true);
+        infoArea.setFont(UITheme.FONT_BODY);
+        infoArea.setBackground(UITheme.BG_CARD);
+        detailsPanel.add(new JScrollPane(infoArea), BorderLayout.CENTER);
+
+        JOptionPane.showMessageDialog(this, detailsPanel, "Item Details", JOptionPane.INFORMATION_MESSAGE);
     }
 
     public void refresh() { loadItems(null, "All"); }
