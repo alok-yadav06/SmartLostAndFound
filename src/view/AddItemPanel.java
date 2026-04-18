@@ -1,11 +1,15 @@
 package view;
 
+import controller.UserController;
 import java.awt.*;
 import javax.swing.*;
 import util.UITheme;
 
 /**
  * AddItemPanel provides quick navigation to report Lost/Found items.
+ * 
+ * LOGIN REQUIREMENT: Users must be logged in to report items.
+ * Check is performed in button ActionListeners before navigation.
  */
 public class AddItemPanel extends JPanel {
 
@@ -33,10 +37,18 @@ public class AddItemPanel extends JPanel {
 		sub.setForeground(UITheme.TEXT_SECONDARY);
 
 		JButton lostBtn = UITheme.primaryButton("+ Report Lost Item");
-		lostBtn.addActionListener(e -> navigateTo(MainFrame.LOST_ITEMS));
+		lostBtn.addActionListener(e -> {
+			if (checkLoginAndProceed()) {
+				navigateTo(MainFrame.LOST_ITEMS);
+			}
+		});
 
 		JButton foundBtn = UITheme.successButton("+ Report Found Item");
-		foundBtn.addActionListener(e -> navigateTo(MainFrame.FOUND_ITEMS));
+		foundBtn.addActionListener(e -> {
+			if (checkLoginAndProceed()) {
+				navigateTo(MainFrame.FOUND_ITEMS);
+			}
+		});
 
 		gbc.gridy = 0;
 		card.add(title, gbc);
@@ -48,6 +60,35 @@ public class AddItemPanel extends JPanel {
 		card.add(foundBtn, gbc);
 
 		add(card);
+	}
+
+	/**
+	 * Checks if user is logged in before allowing item report.
+	 * If not logged in, shows error dialog and prompts to login.
+	 * 
+	 * @return true if user is logged in, false otherwise
+	 */
+	private boolean checkLoginAndProceed() {
+		UserController userCtrl = UserController.getInstance();
+		
+		// Check if user is logged in
+		if (!userCtrl.isLoggedIn()) {
+			JOptionPane.showMessageDialog(
+				this,
+				"Please login first to report an item",
+				"Login Required",
+				JOptionPane.WARNING_MESSAGE
+			);
+			
+			// Prompt user to login
+			Window window = SwingUtilities.getWindowAncestor(this);
+			if (window instanceof MainFrame frame) {
+				frame.promptLogin();
+			}
+			return false;
+		}
+		
+		return true;
 	}
 
 	private void navigateTo(String panelName) {

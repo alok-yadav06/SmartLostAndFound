@@ -190,6 +190,23 @@ public class FoundItemsPanel extends JPanel {
     // ── Add Dialog ─────────────────────────────────────────
 
     private void showAddDialog() {
+        // LOGIN CHECK: User must be logged in to report an item
+        if (!UserController.getInstance().isLoggedIn()) {
+            JOptionPane.showMessageDialog(
+                this,
+                "Please login first to report an item",
+                "Login Required",
+                JOptionPane.WARNING_MESSAGE
+            );
+            
+            // Prompt user to login
+            Window window = SwingUtilities.getWindowAncestor(this);
+            if (window instanceof MainFrame frame) {
+                frame.promptLogin();
+            }
+            return;
+        }
+
         JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this),
             "Report Found Item", Dialog.ModalityType.APPLICATION_MODAL);
         dialog.setSize(500, 560);

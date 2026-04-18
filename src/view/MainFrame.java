@@ -300,6 +300,17 @@ private JPanel buildContentArea() {
         reloadContentPanels();
     }
 
+    /**
+     * Prompts user to login when they try to perform a restricted action.
+     * Called when user is not logged in but tries to report an item.
+     * Does NOT allow guest mode (unlike promptLoginAtStartup).
+     */
+    public void promptLogin() {
+        openLoginDialog(false);
+        refreshSessionUI();
+        reloadContentPanels();
+    }
+
     private void handleSessionButton() {
         if (UserController.getInstance().isLoggedIn()) {
             int confirm = JOptionPane.showConfirmDialog(this,
